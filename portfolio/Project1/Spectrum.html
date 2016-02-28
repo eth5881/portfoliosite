@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>Spectrum</title>
+	<style type="text/css">
+	canvas{
+		border:1px solid gray;
+	}
+	@font-face {
+		font-family: "Xirod";
+		src: url("xirod.ttf");
+	}
+	@font-face {
+		font-family: "NeogreyMedium";
+		src: url("NeogreyMedium.otf");
+	}
+	#resetButton{
+		position:absolute;
+		left:85px;
+		top:45px;
+		visibility: hidden;
+	}
+	#menuButton{
+		position:absolute;
+		left:35px;
+		top:45px;
+		visibility: hidden;
+	}
+	#startButton{
+		position:absolute;
+		left:220px;
+		top:200px;
+		visibility: visible;
+	}
+	#levelsButton{
+		position:absolute;
+		left:220px;
+		top:290px;
+		visibility: visible;
+	}
+	#arrowButton{
+		position:absolute;
+		left:20px;
+		top:400px;
+		visibility: hidden;
+	}
+	#titleScreen{
+		position:absolute;
+		left:9px;
+		top:-7px;
+		visibility: visible;
+	}
+	#levelScreen{
+		position:absolute;
+		left:9px;
+		top:-7px;
+		visibility: hidden;
+	}
+	#level1{
+		position:absolute;
+		left:60px;
+		top:110px;
+		visibility: hidden;
+	}
+	#level2{
+		position:absolute;
+		left:200px;
+		top:110px;
+		visibility: hidden;
+	}
+	#level3{
+		position:absolute;
+		left:340px;
+		top:110px;
+		visibility: hidden;
+	}
+	#level4{
+		position:absolute;
+		left:480px;
+		top:110px;
+    	visibility: hidden;
+	}
+	#level5{
+		position:absolute;
+		left:60px;
+		top:260px;
+    	visibility: hidden;
+	}
+	#level6{
+		position:absolute;
+		left:200px;
+		top:260px;
+    	visibility: hidden;
+	}
+	#level7{
+		position:absolute;
+		left:340px;
+		top:260px;
+    	visibility: hidden;
+	}
+	#level8{
+		position:absolute;
+		left:480px;
+		top:260px;
+    	visibility: hidden;
+	}
+	#sound{
+		position:absolute;
+		left:600px;
+		top:5px;
+		visibility:hidden;
+	}
+	#mute{
+		position:absolute;
+		left:600px;
+		top:5px;
+		visibility:hidden;
+	}
+	#help{
+		position:absolute;
+		left:600px;
+		top:430px;
+		visibility:hidden;
+	}
+	#helpMenu{
+		position:absolute;
+		left:200px;
+		top:85px;
+		visibility:hidden;
+	}
+	#noselect{
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		-khtml-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+	}
+	#audioControls{
+		display:none;
+	}
+	</style>
+	<script src="js/levels.js" type="text/javascript"></script>
+	<script src="js/block.js" type ="text/javascript"></script>
+	<script>
+	(function(){
+	    //comment
+		"use strict";
+
+		//declare some global variables
+		var canvas, ctx;
+		var CANVAS_WIDTH = 640;
+		var CANVAS_HEIGHT = 480;
+		var GAME_STATE_BEGIN = 0;
+		var GAME_STATE_DEFAULT = 1;
+		var GAME_STATE_END = 2;
+		var GAME_STATE_ROUND_OVER = 3;
+		var GAME_STATE_RESTART = 4;
+		var GAME_STATE_MESSAGE = 5;
+		var GAME_STATE_HELP = 6;
+		var GAME_STATE_LEVELS_SCREEN = 7;
+		var MAX_LEVEL = 7;
+		var roundScore = 0;
+		var redClicked = false;
+		var blueClicked = false;
+		var yellowClicked = false;
+		var mouseMove = {};
+		var gridColor = "#fff";
+		var currentGrid = [];
+		var trackCx = 0;
+		var trackCy = 0;
+		var firstDraw = true, firstTut = true;
+		var currentLevel = 0;
+		var cx = levels[currentLevel].cx; // changing, not static like translations
+		var cy = levels[currentLevel].cy; // changing, not static like translations
+		var gameState = GAME_STATE_BEGIN;
+		var movesRemaining = levels[currentLevel].numMoves;
+		var targetArray = [];
+		var bgAudio, targetReached, targetMatched;
+		var muted = false;
+		var minMoves = levels[currentLevel].minMoves;
+		var midMoves = levels[currentLevel].midMoves;
+		var starScoreArray = JSON.parse(localStorage.getItem("starScore")) || [];
+		var stars = starScoreArray[currentLevel] || 0;
+		var helpOpen = false;
+		
+		window.onload = init;
+	
+		function init(){
+			console.log("init called");
+			
+			//set up canvas
+			canvas = document.querySelector("canvas");
+			ctx = canvas.getContext("2d");
+			
+			bgAudio = document.querySelector("#bgAudio");
+			bgAudio.volume = 0.25;
+			bgAudio.play();
+			targetReached = document.querySelector("#targetReached");
+			targetReached.volume = 0.3;
+			
+			targetMatched = document.querySelector("#targetMatched");
+			targetMatched.volume = 0.3;
+			
+			canvas.onmousedown = doMouseDown;
+			
+			window.addEventListener("mousemove", function(e){
+				mouseMove.x = e.pageX;
+				mouseMove.x = mouseMove.x - e.target.offsetLeft;
+				mouseMove.y = e.pageY;
+				mouseMove.y = mouseMove.y - e.target.offsetTop;
+			});
+			
+			var resetButton = document.querySelector("#resetButton");
+			resetButton.onclick = function(){
+				redClicked = false;
+				blueClicked = false;
+				yellowClicked = false;
+				gameState = GAME_STATE_DEFAULT;
+				reset();
+			}
+			
+			var menuButton = document.querySelector("#menuButton");
+			menuButton.onclick = function(){
+				redClicked = false;
+				blueClicked = false;
+				yellowClicked = false;
+				gameState = GAME_STATE_BEGIN;
+				reset();
+				document.querySelector("#titleScreen").style.visibility = "visible";
+				document.querySelector("#startButton").style.visibility = "visible";
+				document.querySelector("#levelsButton").style.visibility = "visible";
+				document.querySelector("#menuButton").style.visibility = "hidden";
+				document.querySelector("#resetButton").style.visibility = "hidden";
+				document.querySelector("#sound").style.visibility = "hidden";
+				document.querySelector("#mute").style.visibility = "hidden";
+				document.querySelector("#help").style.visibility = "hidden";
+				document.querySelector("#helpMenu").style.visibility = "hidden";
+			}
+			
+			var startButton = document.querySelector("#startButton");
+			startButton.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#titleScreen").style.visibility = "hidden";
+				document.querySelector("#startButton").style.visibility = "hidden";
+				document.querySelector("#levelsButton").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				update();
+			}
+			
+			var sound = document.querySelector("#sound");
+			sound.onclick = function(){
+				bgAudio.pause();
+				document.querySelector("#sound").style.visibility = "hidden";
+				document.querySelector("#mute").style.visibility = "visible";
+			}
+			
+			var mute = document.querySelector("#mute");
+			mute.onclick = function(){
+				bgAudio.play();
+				document.querySelector("#mute").style.visibility = "hidden";
+				document.querySelector("#sound").style.visibility = "visible";
+			}
+			
+			var help = document.querySelector("#help");
+			help.onclick = function(){
+				document.querySelector("#helpMenu").style.visibility = "visible";
+				gameState = GAME_STATE_HELP;
+			}
+			
+			var helpMenu = document.querySelector("#helpMenu");
+			helpMenu.onclick = function(){
+				document.querySelector("#helpMenu").style.visibility = "hidden";
+				gameState = GAME_STATE_DEFAULT;
+			}
+			
+			var levelsButton = document.querySelector("#levelsButton");
+			levelsButton.onclick = function(){
+				document.querySelector("#titleScreen").style.visibility = "hidden";
+				document.querySelector("#startButton").style.visibility = "hidden";
+				document.querySelector("#levelsButton").style.visibility = "hidden";
+				document.querySelector("#arrowButton").style.visibility = "visible";
+				document.querySelector("#levelScreen").style.visibility = "visible";
+				document.querySelector("#level1").style.visibility = "visible";
+				document.querySelector("#level2").style.visibility = "visible";
+				document.querySelector("#level3").style.visibility = "visible";
+				document.querySelector("#level4").style.visibility = "visible";
+				document.querySelector("#level5").style.visibility = "visible";
+				document.querySelector("#level6").style.visibility = "visible";
+				document.querySelector("#level7").style.visibility = "visible";
+				document.querySelector("#level8").style.visibility = "visible";
+				gameState = GAME_STATE_LEVELS_SCREEN;
+			}
+			
+			var arrowButton = document.querySelector("#arrowButton");
+			arrowButton.onclick = function(){
+				document.querySelector("#titleScreen").style.visibility = "visible";
+				document.querySelector("#startButton").style.visibility = "visible";
+				document.querySelector("#levelsButton").style.visibility = "visible";
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+			}
+			
+			var level1 = document.querySelector("#level1");
+			level1.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 0;
+				reset();
+			}
+			
+			var level2 = document.querySelector("#level2");
+			level2.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 1;
+				reset();
+			}
+			var level3 = document.querySelector("#level3");
+			level3.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 2;
+				reset();
+			}
+			var level4 = document.querySelector("#level4");
+			level4.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 3;
+				reset();
+			}
+			var level5 = document.querySelector("#level5");
+			level5.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 4;
+				reset();
+			}
+			var level6 = document.querySelector("#level6");
+			level6.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 5;
+				reset();
+			}
+			var level7 = document.querySelector("#level7");
+			level7.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 6;
+				reset();
+			}
+			var level8 = document.querySelector("#level8");
+			level8.onclick = function(){
+				gameState = GAME_STATE_MESSAGE;
+				document.querySelector("#arrowButton").style.visibility = "hidden";
+				document.querySelector("#levelScreen").style.visibility = "hidden";
+				document.querySelector("#level1").style.visibility = "hidden";
+				document.querySelector("#level2").style.visibility = "hidden";
+				document.querySelector("#level3").style.visibility = "hidden";
+				document.querySelector("#level4").style.visibility = "hidden";
+				document.querySelector("#level5").style.visibility = "hidden";
+				document.querySelector("#level6").style.visibility = "hidden";
+				document.querySelector("#level7").style.visibility = "hidden";
+				document.querySelector("#level8").style.visibility = "hidden";
+				document.querySelector("#menuButton").style.visibility = "visible";
+				document.querySelector("#resetButton").style.visibility = "visible";
+				document.querySelector("#help").style.visibility = "visible";
+				document.querySelector("#sound").style.visibility = "visible";
+				currentLevel = 7;
+				reset();
+			}
+			
+			
+			update();
+		}
+		
+		function update(){
+			
+			//console.log(starScoreArray);
+			//DRAW
+			//draw background
+			ctx.fillStyle = "black";
+			ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+			
+			//draw grid
+			drawGrid();
+			
+			//draw HUD
+			drawHUD();
+			
+			checkClicks();
+			
+			requestAnimationFrame(update);
+		}
+		
+		function reset(){
+			gridColor = "#fff";
+			currentGrid = [];
+			targetArray = [];
+			firstDraw = true;
+			firstTut = true;
+			trackCx = 0;
+			trackCy = 0;
+			cx = levels[currentLevel].cx;
+			cy = levels[currentLevel].cy;
+			movesRemaining = levels[currentLevel].numMoves;
+			minMoves = levels[currentLevel].minMoves;
+			midMoves = levels[currentLevel].midMoves;
+			stars = starScoreArray[currentLevel] || 0;
+			update();
+		}
+		
+		function makeColumns(j)
+		{
+			ctx.save();
+			
+			ctx.translate(CANVAS_WIDTH/2-5*24,CANVAS_HEIGHT/2-5*35);
+			
+			var column = [];
+			for(var i=0;i < levels[currentLevel].gridColumns; i++){
+				ctx.translate(50,0);
+				var block = new Block(j, i, cx, cy);
+				column.push(block);
+				cx += 50;
+				trackCx += 50;
+				//console.log(cx, trackCx)
+			}
+			cx -= trackCx;
+			ctx.restore();
+			trackCx = 0;
+			return column;
+		}
+		
+		function makeRows(){
+				
+			ctx.save();
+
+			for(var j=0;j < levels[currentLevel].gridRows; j++){		//number of rows
+				var addRow = makeColumns(j);
+				currentGrid.push(addRow);
+				cy += 50;
+				trackCy += 50;
+				ctx.translate(0,50); 	// move (0,0) down for next row
+			}
+				
+			cy -= trackCy;
+			ctx.restore();
+			trackCy = 0;			
+			//console.log(currentGrid);
+		}
+		
+		function addTarget()
+		{
+			var targetCoor = levels[currentLevel].targetGrid;
+			if( levels[currentLevel].targetNum > 1)
+			{
+				for(var k = 0; k < targetCoor.length; k++)
+				{
+				
+					currentGrid[targetCoor[k].i][targetCoor[k].j].target = true;
+					currentGrid[targetCoor[k].i][targetCoor[k].j].insideColor = levels[currentLevel].targetColor[k];
+				}
+			} else {
+				var currentTarget = currentGrid[targetCoor[0].i][targetCoor[0].j];
+				
+				currentTarget.target = true;
+				currentTarget.insideColor = levels[currentLevel].targetColor[0];
+
+			}
+		}
+		
+		function addDrop()
+		{
+			var dropCoor = levels[currentLevel].dropGrid;
+			if( levels[currentLevel].dropNum > 1)
+			{
+				for(var k = 0; k < dropCoor.length; k++)
+				{
+					currentGrid[dropCoor[k].i][dropCoor[k].j].drop = true;
+					currentGrid[dropCoor[k].i][dropCoor[k].j].insideColor = "gray";
+				}
+			} else {
+				currentGrid[dropCoor[0].i][dropCoor[0].j].drop = true;
+				currentGrid[dropCoor[0].i][dropCoor[0].j].insideColor = "gray";
+			}
+		}
+		
+		function addObstacles()
+		{
+			var obstacleCoor = levels[currentLevel].obstacleGrid;
+			if( levels[currentLevel].obstacleNum > 1)
+			{
+				for(var k = 0; k < obstacleCoor.length; k++)
+				{
+					currentGrid[obstacleCoor[k].i][obstacleCoor[k].j].obstacle = true;
+					currentGrid[obstacleCoor[k].i][obstacleCoor[k].j].fillStyle = "fff";
+				}
+				
+			} else if( levels[currentLevel].obstacleNum == 1){
+				currentGrid[obstacleCoor[0].i][obstacleCoor[0].j].obstacle = true;
+				currentGrid[obstacleCoor[0].i][obstacleCoor[0].j].fillStyle = "fff";
+			} 
+		}
+		
+		function drawGrid(){
+		//console.log(currentGrid[0][0]);
+			//if (gameState == GAME_STATE_END) ctx..globalAlpha = 0.25;
+			//if (gameState == GAME_STATE_ROUND_OVER) ctx.globalAlpha = 0.5;
+		
+			if(firstDraw)
+			{
+				makeRows();
+				addTarget();
+				addDrop();
+				addObstacles();
+				
+				for(var i=0;i < levels[currentLevel].gridRows; i++){
+				//number of rows
+					for(var j=0;j < levels[currentLevel].gridColumns; j++){	//number of columns
+						
+						currentGrid[i][j].draw(ctx);
+					}
+				}
+				firstDraw = false;
+			} else 
+			{
+				for(var i=0;i < levels[currentLevel].gridRows; i++){
+				//number of rows
+					for(var j=0;j < levels[currentLevel].gridColumns; j++){	//number of columns
+						
+						currentGrid[i][j].draw(ctx);
+					}
+				}
+			}
+		}
+		
+		function drawText(string, x, y, size, color, font){
+			ctx.font = size+'px ' + font;
+			ctx.fillStyle = color;
+			ctx.fillText(string, x, y);
+		}
+		
+		function colorBox(x,y,width,height,color){
+			ctx.save();
+			ctx.fillStyle = color;
+			ctx.strokeStyle = "000";
+			ctx.lineWidth = 2;
+			ctx.fillRect(x, y, width, height);
+			ctx.strokeRect(x, y, width, height);
+			ctx.restore();
+		}
+		
+		function drawStar(ctx, fill, x, y, r, p, m)
+		{
+			ctx.save();
+			ctx.fillStyle = fill;
+			ctx.beginPath();
+			ctx.translate(x, y);
+			ctx.moveTo(0,0-r);
+			for (var i = 0; i < p; i++)
+			{
+				ctx.rotate(Math.PI / p);
+				ctx.lineTo(0, 0 - (r*m));
+				ctx.rotate(Math.PI / p);
+				ctx.lineTo(0, 0 - r);
+			}
+			ctx.fill();
+			ctx.restore();
+		}
+		
+		function drawLevelScreenStars()
+		{
+			console.log(starScoreArray);
+			var x = -60;
+			var y = -35;
+			var z = -10;
+			for(var i=0; i < 4; i++){
+				if(starScoreArray[i] == 3){
+					drawStar(ctx, "yellow", x += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "yellow", y += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "yellow", z += 140, 235, 12, 5, 0.5);
+				} else if(starScoreArray[i] == 2){
+					drawStar(ctx, "yellow", x += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "yellow", y += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "gray", z += 140, 235, 12, 5, 0.5);
+				} else if(starScoreArray[i] == 1){
+					drawStar(ctx, "yellow", x += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "gray", y += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "gray", z += 140, 235, 12, 5, 0.5);
+				} else 
+				{
+					drawStar(ctx, "gray", x += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "gray", y += 140, 235, 12, 5, 0.5);
+					drawStar(ctx, "gray", z += 140, 235, 12, 5, 0.5);
+				}
+			}
+			var a = -60;
+			var b = -35;
+			var c = -10;
+			for(var i=0; i < 4; i++){
+				if(starScoreArray[i+4] == 3){
+					drawStar(ctx, "yellow", a += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "yellow", b += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "yellow", c += 140, 385, 12, 5, 0.5);
+				} else if(starScoreArray[i+4] == 2){
+					drawStar(ctx, "yellow", a += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "yellow", b += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "gray", c += 140, 385, 12, 5, 0.5);
+				} else if(starScoreArray[i+4] == 1){
+					drawStar(ctx, "yellow", a += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "gray", b += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "gray", c += 140, 385, 12, 5, 0.5);
+				} else {
+					drawStar(ctx, "gray", a += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "gray", b += 140, 385, 12, 5, 0.5);
+					drawStar(ctx, "gray", c += 140, 385, 12, 5, 0.5);
+				}
+			}
+		}
+		
+		function drawSideMenu(){
+			//make red box
+			colorBox(40,120,60,60,"red");
+			
+			//make blue box
+			colorBox(40,210,60,60,"blue");
+			
+			//make yellow box
+			colorBox(40,300,60,60,"yellow");
+			
+		}
+		
+		function drawHUD(){
+			ctx.save();
+			ctx.fillStyle = "#fff";
+			ctx.strokeStyle = "000";
+			ctx.lineWidth = 2;
+			//ctx.fillRect(0,0,100,480);
+			//ctx.strokeRect(0,110,205,370);
+			ctx.restore();
+		
+			// draw score
+			// drawText(string, x, y, size, color)
+		    if(gameState == GAME_STATE_DEFAULT ){
+				document.querySelector("#help").style.visibility = "visible";
+				ctx.globalAlpha = 1.0;
+				drawText("Moves Remaining:", 245, 450, 18, "#fff", "Xirod");
+				drawText(movesRemaining, 505, 450, 20, "#f00", "Xirod");
+				//checkHighScore();
+				if(stars == 3){
+					drawStar(ctx, "yellow", 37, 27, 18, 5, 0.5);
+					drawStar(ctx, "yellow", 72, 27, 18, 5, 0.5);
+					drawStar(ctx, "yellow", 107, 27, 18, 5, 0.5);
+				} else if(stars == 2){
+					drawStar(ctx, "yellow", 37, 27, 18, 5, 0.5);
+					drawStar(ctx, "yellow", 72, 27, 18, 5, 0.5);
+					drawStar(ctx, "gray", 107, 27, 18, 5, 0.5);
+				} else if(stars == 1){
+					drawStar(ctx, "yellow", 37, 27, 18, 5, 0.5);
+					drawStar(ctx, "gray", 72, 27, 18, 5, 0.5);
+					drawStar(ctx, "gray", 107, 27, 18, 5, 0.5);
+				} else {
+					drawStar(ctx, "gray", 37, 27, 18, 5, 0.5);
+					drawStar(ctx, "gray", 72, 27, 18, 5, 0.5);
+					drawStar(ctx, "gray", 107, 27, 18, 5, 0.5);
+				}
+				//console.log(stars);
+				
+				//drawText("Stars: " + stars, 20, 30, 16, "#fff", "Xirod");
+		    }
+			//drawText("Color Bank:", 25, 100, 25, "#000");
+			
+			//draw side menu
+			drawSideMenu();
+			
+			if(gameState == GAME_STATE_HELP){
+				ctx.globalAlpha = 0.20;
+			}
+			if(gameState == GAME_STATE_LEVELS_SCREEN){
+				ctx.fillStyle = "black";
+				ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+				drawLevelScreenStars();
+			}
+			
+			if(gameState == GAME_STATE_END){
+				//var setStars;
+				//console.log(currentLevel);
+				document.querySelector("#help").style.visibility = "hidden";
+				ctx.save();
+				ctx.globalAlpha = 0.75;
+				ctx.fillStyle = "black";
+				ctx.fillRect(100,0, CANVAS_WIDTH, CANVAS_HEIGHT);
+				ctx.save();
+				ctx.globalAlpha = 1.0;
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("Congradulations!", CANVAS_WIDTH/2 + 70, CANVAS_HEIGHT/2 - 150, 30,"gold", "Xirod");
+				drawText("You have completed the" , CANVAS_WIDTH/2+75, CANVAS_HEIGHT/2 -110, 18, "white", "Xirod");
+				drawText("final level." , CANVAS_WIDTH/2+75, CANVAS_HEIGHT/2 -80, 18, "white", "Xirod");
+				drawText("Click to return to Main Menu.", CANVAS_WIDTH/2+65, CANVAS_HEIGHT/2 +200, 20, "red", "Xirod");
+				
+				ctx.restore();
+				ctx.restore();
+			}
+			if(gameState == GAME_STATE_ROUND_OVER){
+				//var setStars;
+				//console.log(currentLevel);
+				document.querySelector("#help").style.visibility = "hidden";
+				ctx.save();
+				ctx.globalAlpha = 0.75;
+				ctx.fillStyle = "black";
+				ctx.fillRect(100,0, CANVAS_WIDTH, CANVAS_HEIGHT);
+				ctx.save();
+				ctx.globalAlpha = 1.0;
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("Level Complete", CANVAS_WIDTH/2 + 70, CANVAS_HEIGHT/2 - 150, 30,"white", "Xirod");
+				drawText("Click to continue", CANVAS_WIDTH/2+75, CANVAS_HEIGHT/2 -110, 24, "red", "Xirod");
+				
+				if(movesRemaining >= minMoves)
+				{
+					//console.log("3 stars");
+					stars = 3;
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2+63, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2+125, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+				}else if(movesRemaining < minMoves && movesRemaining >= midMoves)
+				{
+					//console.log("2 stars");
+					stars = 2;
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2+63, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "gray", CANVAS_WIDTH/2+125, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+				}else if(movesRemaining < midMoves)
+				{
+					//console.log("1 star");
+					stars = 1;
+					drawStar(ctx, "yellow", CANVAS_WIDTH/2, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "gray", CANVAS_WIDTH/2+63, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+					drawStar(ctx, "gray", CANVAS_WIDTH/2+125, CANVAS_HEIGHT/2 -60, 30, 5, 0.5);
+				}
+				if (levels[currentLevel].levelEnd.length > 0)
+				{
+					var textWidth = CANVAS_WIDTH/2 + 70;
+					var textHeight = CANVAS_HEIGHT/2 + 120;
+				
+					for (var t = 0; t < levels[currentLevel].levelEnd.length; t++)
+					{
+						drawText(levels[currentLevel].levelEnd[t], textWidth, textHeight, 22, "grey", "NeogreyMedium"); 
+						textHeight += 30;
+					}
+					
+				}
+				ctx.restore(); 
+				ctx.restore();
+				//console.log(stars);
+				checkHighScore();
+			}
+		if(gameState == GAME_STATE_RESTART && currentLevel < 6)
+			{
+				ctx.save();
+				ctx.textAlign = "center";
+				ctx.textBaseline = "top";
+				ctx.shadowColor = "yellow"
+				ctx.shadowOffsetX = 3;
+				ctx.shadowOffsetY = 0;
+				ctx.shadowBlur = 10;
+				drawText("<-- Restart", CANVAS_WIDTH/2 - 80, CANVAS_HEIGHT/2 - 180, 24,"white", "Xirod");
+				ctx.restore();
+				
+				if(levels[currentLevel].targetNum == 1)
+				{
+					ctx.save();
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					drawText("The target color", CANVAS_WIDTH/2 +50 , CANVAS_HEIGHT/2 + 110, 24,"white", "Xirod");
+					drawText(missedColor(0), CANVAS_WIDTH/2 + 50, CANVAS_HEIGHT/2 + 140, 24,levels[currentLevel].targetColor[0], "Xirod");
+					drawText("was not matched.", CANVAS_WIDTH/2 +50, CANVAS_HEIGHT/2 + 170, 24,"white", "Xirod");
+					
+					ctx.restore();
+				} else
+				{
+					ctx.save();
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					drawText("The target colors", CANVAS_WIDTH/2 +50 , CANVAS_HEIGHT/2 + 140, 24,"white", "Xirod");
+					drawText("were not matched.", CANVAS_WIDTH/2 +50, CANVAS_HEIGHT/2 + 170, 24,"white", "Xirod");
+					
+					ctx.restore();
+				}
+			} 
+			if(gameState == GAME_STATE_RESTART && currentLevel >= 6)
+			{
+				if(levels[currentLevel].targetNum == 1)
+				{
+					ctx.save();
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					drawText("The target color", CANVAS_WIDTH/2 +50 , CANVAS_HEIGHT/2 + 110, 24,"white", "Xirod");
+					drawText(missedColor(0), CANVAS_WIDTH/2 + 50, CANVAS_HEIGHT/2 + 140, 24,levels[currentLevel].targetColor[0], "Xirod");
+					drawText("was not matched.", CANVAS_WIDTH/2 +50, CANVAS_HEIGHT/2 + 170, 24,"white", "Xirod");
+					
+					ctx.restore();
+				} else
+				{
+					ctx.save();
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					drawText("The target colors", CANVAS_WIDTH/2 +50 , CANVAS_HEIGHT/2 + 140, 24,"white", "Xirod");
+					drawText("were not matched.", CANVAS_WIDTH/2 +50, CANVAS_HEIGHT/2 + 170, 24,"white", "Xirod");
+					
+					ctx.restore();
+				}
+			}
+			if(gameState == GAME_STATE_MESSAGE)
+			{
+				document.querySelector("#help").style.visibility = "hidden";
+				ctx.globalAlpha = 1.0;
+				if (levels[currentLevel].message.length == 0)
+				{
+					gameState = GAME_STATE_DEFAULT;
+					
+				} else {
+					var textWidth = CANVAS_WIDTH/2 + 70;
+					var textHeight = CANVAS_HEIGHT/2 - 120;
+					ctx.save();
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					ctx.fillStyle = "black";
+					ctx.fillRect(100,0, CANVAS_WIDTH, CANVAS_HEIGHT);
+					for (var t = 0; t < levels[currentLevel].message.length; t++)
+					{
+						drawText(levels[currentLevel].message[t], textWidth, textHeight, 32,"white", "NeogreyMedium"); 
+						textHeight += 40;
+					}
+					if (levels[currentLevel].author !== "")
+					{
+						drawText(levels[currentLevel].author, textWidth, textHeight +10, 26,"grey", "NeogreyMedium"); 
+					}
+					drawText("Click to continue", CANVAS_WIDTH/2+75, CANVAS_HEIGHT/2 +120, 20, "red", "NeogreyMedium");
+					
+					ctx.restore();
+				}
+			}
+			if(gameState == GAME_STATE_DEFAULT && currentLevel == 0)
+			{	
+				ctx.save();
+				if(firstTut)
+				{
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					drawText("< Click to", CANVAS_WIDTH/2 - 145, CANVAS_HEIGHT/2 -95, 18,"gray", "Xirod");
+					drawText("Choose", CANVAS_WIDTH/2 - 140, CANVAS_HEIGHT/2 -75, 18,"gray", "Xirod");
+					drawText("Color", CANVAS_WIDTH/2 - 140, CANVAS_HEIGHT/2 -55, 18,"gray", "Xirod");	
+					
+					drawText("< Match", CANVAS_WIDTH/2 + 250, CANVAS_HEIGHT/2, 18,"gray", "Xirod");
+					drawText("Target", CANVAS_WIDTH/2 + 257, CANVAS_HEIGHT/2 +20, 17,"gray", "Xirod");
+				
+					
+				} else 
+				{
+					drawText("^ Click to", CANVAS_WIDTH/2 - 45, CANVAS_HEIGHT/2 +45, 18,"gray", "Xirod");
+					drawText("Drop Color", CANVAS_WIDTH/2 - 45, CANVAS_HEIGHT/2 +65, 18,"gray", "Xirod");
+				
+					drawText("< Match", CANVAS_WIDTH/2 + 195, CANVAS_HEIGHT/2 +7, 18,"gray", "Xirod");
+					drawText("Target", CANVAS_WIDTH/2 + 205, CANVAS_HEIGHT/2 +25, 17,"gray", "Xirod");
+				}	
+				
+				ctx.restore();
+			}
+			if(gameState == GAME_STATE_DEFAULT && currentLevel == 1)
+			{
+				ctx.save();
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("→", CANVAS_WIDTH/2 + 60, CANVAS_HEIGHT/2 -145, 70,"gray");
+				drawText("←", CANVAS_WIDTH/2 + 60, CANVAS_HEIGHT/2 + 90, 70,"gray");
+				ctx.restore();
+			}
+			if(gameState == GAME_STATE_DEFAULT && currentLevel == 2)
+			{
+				ctx.save();
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("↑", CANVAS_WIDTH/2 + 185, CANVAS_HEIGHT/2 -30, 70,"gray");
+				drawText("↓", CANVAS_WIDTH/2 - 65, CANVAS_HEIGHT/2 -30, 70,"gray");
+				ctx.restore();
+			}
+			if(gameState == GAME_STATE_DEFAULT && currentLevel == 3)
+			{
+				ctx.save();
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("Red", CANVAS_WIDTH/2 - 70, CANVAS_HEIGHT/2 -170, 18,"red", "Xirod");
+				drawText(" + ", CANVAS_WIDTH/2 - 30, CANVAS_HEIGHT/2 -170, 22,"gray", "Xirod");
+				drawText("Yellow", CANVAS_WIDTH/2 + 40, CANVAS_HEIGHT/2 -170, 18,"yellow", "Xirod");
+				drawText(" = ", CANVAS_WIDTH/2 + 110, CANVAS_HEIGHT/2 -170, 22,"gray", "Xirod");
+				drawText("Orange", CANVAS_WIDTH/2 + 180, CANVAS_HEIGHT/2-170, 18,"DarkOrange", "Xirod");
+				
+				ctx.restore();
+			}
+			if(gameState == GAME_STATE_DEFAULT && currentLevel == 5)
+			{
+				ctx.save();
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				drawText("Blue", CANVAS_WIDTH/2 - 70, CANVAS_HEIGHT/2 -170, 18,"Blue", "Xirod");
+				drawText(" + ", CANVAS_WIDTH/2 - 25, CANVAS_HEIGHT/2 -170, 22,"gray", "Xirod");
+				drawText("Yellow", CANVAS_WIDTH/2 -70, CANVAS_HEIGHT/2 -150, 18,"yellow", "Xirod");
+				drawText(" = ", CANVAS_WIDTH/2 - 5, CANVAS_HEIGHT/2 -150, 22,"gray", "Xirod");
+				drawText("Green", CANVAS_WIDTH/2 -70, CANVAS_HEIGHT/2-130, 18,"Green", "Xirod");
+				
+				drawText("Blue", CANVAS_WIDTH/2 + 170, CANVAS_HEIGHT/2 -170, 18,"Blue", "Xirod");
+				drawText(" + ", CANVAS_WIDTH/2 + 215, CANVAS_HEIGHT/2 -170, 22,"gray", "Xirod");
+				drawText("Red", CANVAS_WIDTH/2 + 170, CANVAS_HEIGHT/2 -150, 18,"Red", "Xirod");
+				drawText(" = ", CANVAS_WIDTH/2 + 205, CANVAS_HEIGHT/2 -150, 22,"gray", "Xirod");
+				drawText("Purple", CANVAS_WIDTH/2 + 170, CANVAS_HEIGHT/2-130, 18,"purple", "Xirod");
+			}
+		}
+		
+		function missedColor(num)
+		{
+			var currentTarget = levels[currentLevel].targetColor[num];
+			if (currentTarget == "DarkOrange")
+			{
+				return "orange";
+			} else 
+			{
+				return currentTarget;
+			}
+		}
+		
+		function checkNeighbor(i,j, color)
+		{
+			//console.log(currentGrid[j][i], i , j);
+			// currentGrid[row][column], column, row
+			var posRow = j;
+			var posCol = i;
+			var neighborArray = [];
+			var nextBlockArray = [];
+			
+			for(var row = posRow -1; row <= posRow +1; row++)
+			{
+				for( var col = posCol -1; col <= posCol + 1; col++)
+				{
+					//grabs all of the surrounding blocks and the selected block itself to make a 3x3 check
+					if( !(posCol == row && posRow == col) && row >= 0 && col >= 0 && row < levels[currentLevel].gridRows && col < levels[currentLevel].gridColumns)
+					{
+						neighborArray.push(currentGrid[row][col]);
+						//console.log(neighborArray);
+					}
+				}
+			}	
+			
+			//if the block is not an obstacle, target, or drop block, add it to the new array of 
+			//empty blocks, Helps choose which direction to change the color
+			for(var k = 0; k < neighborArray.length; k++)
+			{
+			 	if(!neighborArray[k].target	&& !neighborArray[k].obstacle  && !neighborArray[k].drop)
+				{	
+					nextBlockArray.push(neighborArray[k]);
+				}
+				//console.log(nextBlockArray);
+			}
+			
+			
+			for(var k = 0; k < nextBlockArray.length; k++)
+			{
+				//if the empty block is in the same row as the selected block, change fill of row
+				if ( nextBlockArray[k].row == j)
+				{	
+					//console.log("row");
+					//console.log(nextBlockArray[k].column);
+					if (nextBlockArray[k].column > 1)
+					{
+						for (var n = levels[currentLevel].gridColumns -1; n >= 0; n--)
+						{
+							for (var p = levels[currentLevel].gridRows -1; p >= 0; p--)
+							{
+								if (currentGrid[p][n].row == j)
+								{
+									color = changeFills(n,p,color);
+									//console.log(color);
+								}
+							}
+						}
+					} else
+					{
+						for (var n = 0; n  < levels[currentLevel].gridColumns; n++)
+						{
+							for (var p = 0; p < levels[currentLevel].gridRows; p++)
+							{
+								if (currentGrid[p][n].row == j)
+								{
+									color = changeFills(n,p,color);
+									//console.log(color);
+								}
+							}
+						}
+					}
+				//if the empty block is in the same column as the selected block, change fill of column
+				} else if ( nextBlockArray[k].column == i)
+				{
+					//console.log("column");
+					if (nextBlockArray[k].row > 1)
+					{
+						for (var n = levels[currentLevel].gridColumns -1; n >= 0; n--)
+						{
+							for (var p = levels[currentLevel].gridRows -1; p >= 0; p--)
+							{
+								if (currentGrid[p][n].column == i)
+								{
+									console.log(currentGrid[p][n].row);
+									color = changeFills(n,p,color);
+									//console.log(color);
+								}
+							}
+						}
+					
+					} else
+					{
+						for (var n = 0; n  < levels[currentLevel].gridColumns; n++)
+						{
+							for (var p = 0; p < levels[currentLevel].gridRows; p++)
+							{
+								if (currentGrid[p][n].column == i)
+								{
+									console.log(currentGrid[p][n].row);
+									color = changeFills(n,p,color);
+									//console.log(color);
+								}
+							}
+						}
+					}
+				}
+			}
+			//console.log("its a  neighbour" + row + col);	
+		}//end checkNeighbor
+		
+		function changeFills(col, row, color)
+		{
+			//console.log(currentGrid[row][col].fillStyle);
+			//if the current Block is white change it to the dropped color
+			if( currentGrid[row][col].fillStyle == "#fff")
+			{
+				//console.log("change fill");
+				currentGrid[row][col].fillStyle = color;
+				return color;
+				
+			// else if the current block is not white
+			} else
+			{
+				var currentColor = currentGrid[row][col].fillStyle;
+				var droppedColor = color;
+				
+				var newColor = checkColorCombo(currentColor, droppedColor);
+				
+				currentGrid[row][col].fillStyle = newColor;
+				return newColor;
+				
+			}	
+		}
+		
+		function checkColorCombo(currentColor, droppedColor)
+		{
+			var newColor;
+			if(currentColor == droppedColor)
+			{
+				newColor = currentColor;
+			} else if(currentColor == "red" && droppedColor == "yellow" || currentColor == "yellow" && droppedColor == "red")
+			{
+				newColor = "DarkOrange";
+				
+			}else if(currentColor == "red" && droppedColor == "blue" || currentColor == "blue" && droppedColor == "red")
+			{
+				newColor = "purple";
+			}else if(currentColor == "blue" && droppedColor == "yellow" || currentColor == "yellow" && droppedColor == "blue")
+			{
+				newColor = "green";
+			}else if(currentColor == "red" && droppedColor == "purple" || currentColor == "purple" && droppedColor == "red")
+			{	
+				newColor = "crimson";
+			}else if(currentColor == "blue" && droppedColor == "green" || currentColor == "green" && droppedColor == "blue")
+			{	
+				newColor = "teal";
+			}else if(currentColor == "yellow" && droppedColor == "purple" || currentColor == "purple" && droppedColor == "yellow" 
+					|| currentColor == "blue" && droppedColor == "DarkOrange" || currentColor == "DarkOrange" && droppedColor == "blue"
+					|| currentColor == "red" && droppedColor == "green" || currentColor == "green" && droppedColor == "red")
+			{	
+				newColor = "#4D3B05";
+			}else if(currentColor !== "#4D3B05" && droppedColor == "#4D3B05" || currentColor == "#4D3B05" && droppedColor !== "#4D3B05" )
+			{	
+				newColor = "#4D3B05";
+			} else
+			{
+				newColor = "DimGrey";
+			}
+			
+			return newColor;
+		}
+		
+function checkTarget()
+		{	
+			var allColorsMatch = false;
+			
+			//if the length of the target array matched the number of targets, there is a good chance all targets have been matched
+			if (targetArray.length == levels[currentLevel].targetNum)
+			{
+				//this for checks to see if the current fillstyle of the target blocks can be found in the targetColors array
+				//returns a boolean value
+				for (var p = 0; p < levels[currentLevel].targetNum; p++)
+				{
+					allColorsMatch = containsColor(currentGrid[levels[currentLevel].targetGrid[p].i][levels[currentLevel].targetGrid[p].j].fillStyle, targetArray);
+				
+				}
+				
+				//console.log(allColorsMatch);
+				
+				// if all the colors are in the target array, the level is complete
+				//this is very situational and most likely will need to be edited in certain circumstances
+				if(allColorsMatch && currentLevel == MAX_LEVEL)
+				{
+					gameState = GAME_STATE_END;
+					if(muted == false)
+					{
+						targetReached.play();
+					}
+				
+				} else if (allColorsMatch && currentLevel < MAX_LEVEL)
+				{
+					gameState = GAME_STATE_ROUND_OVER;
+					if(muted == false)
+					{
+						targetReached.play();
+					}
+					
+				} else 
+				{
+					
+					gameState = GAME_STATE_RESTART;
+				}
+				
+			} else 
+			{
+				for (var k = 0; k < levels[currentLevel].targetNum; k++)
+				{
+					if (currentGrid[levels[currentLevel].targetGrid[k].i][levels[currentLevel].targetGrid[k].j].beenColored)
+					{
+						continue;
+						
+					}
+					else if (currentGrid[levels[currentLevel].targetGrid[k].i][levels[currentLevel].targetGrid[k].j].fillStyle == levels[currentLevel].targetColor[k])
+					{
+						currentGrid[levels[currentLevel].targetGrid[k].i][levels[currentLevel].targetGrid[k].j].beenColored = true;
+						targetArray.push(currentGrid[levels[currentLevel].targetGrid[k].i][levels[currentLevel].targetGrid[k].j].fillStyle);
+						if(muted == false)
+						{
+							targetMatched.play();
+						}
+						checkTarget();
+						
+					} else if (movesRemaining == 0)
+					{
+						//console.log("restart");
+						gameState = GAME_STATE_RESTART;
+					}
+					//console.log(targetArray);
+				}
+			
+			}
+		}//end checkTarget
+		
+		//http://stackoverflow.com/questions/4587061/how-to-determine-if-object-is-in-array
+		// hcnaged object to fillColor, and list to array
+		function containsColor(fillColor, array) 
+		{
+			var i;
+			for (i = 0; i < array.length; i++) {
+				if (array[i] === fillColor) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+		
+		function checkClicks(){
+			if(redClicked == true){
+				ctx.save();
+				ctx.fillStyle = "red";
+				ctx.beginPath();
+				ctx.arc(mouseMove.x,mouseMove.y,7,0,2*Math.PI);
+				ctx.fill();
+				ctx.stroke();
+				ctx.restore();
+				
+				if(firstTut)
+				{
+					firstTut = false;
+				}
+			}
+			if(blueClicked == true){
+				ctx.save();
+				ctx.fillStyle = "blue";
+				ctx.beginPath();
+				ctx.arc(mouseMove.x,mouseMove.y,7,0,2*Math.PI);
+				ctx.fill();
+				ctx.stroke();
+				ctx.restore();
+				if(firstTut)
+				{
+					firstTut = false;
+				}
+			}
+			if(yellowClicked == true){
+				ctx.save();
+				ctx.fillStyle = "yellow";
+				ctx.beginPath();
+				ctx.arc(mouseMove.x,mouseMove.y,7,0,2*Math.PI);
+				ctx.fill();
+				ctx.stroke();
+				ctx.restore();
+				if(firstTut)
+				{
+					firstTut = false;
+				}
+			}
+		}
+		
+			function checkHighScore()
+			{
+				//grab the current highscore list from local content or make a new highscore array
+				//if there is no previous highscores
+				//console.log(starScoreArray);
+				//test if the array is empty or not
+				if ( starScoreArray.length == 0)
+				{
+					//if empty, add the current total score to the highscore list and save to local content
+					starScoreArray = [stars];
+					localStorage.setItem("starScore", JSON.stringify(starScoreArray));
+					//console.log(starScoreArray);
+					
+				} else {
+					var arrayLength = starScoreArray.length;
+					//console.log(currentLevel == arrayLength);
+					if(currentLevel == arrayLength)
+					{
+						//console.log(stars);
+						starScoreArray.push(stars);
+						localStorage.setItem("starScore", JSON.stringify(starScoreArray));
+					}else{
+						starScoreArray[currentLevel] = stars;
+						localStorage.setItem("starScore", JSON.stringify(starScoreArray));
+					}
+				}
+				for (var i = 0; i < starScoreArray.length; i++)
+				{
+					levels[currentLevel].stars = starScoreArray[currentLevel];
+				}
+				//console.log(starScoreArray);
+			}//end function
+		
+		function getMouse(e){
+			var mouse = {} //make an object
+			mouse.x = e.pageX - e.target.offsetLeft;
+			mouse.y = e.pageY - e.target.offsetTop;
+			return mouse;
+		}
+		
+	function doMouseDown(e){
+			var mouse = getMouse(e);
+			if(gameState != GAME_STATE_ROUND_OVER && gameState != GAME_STATE_RESTART){
+				if(mouse.x > 40 && mouse.x < 100 && mouse.y > 120 && mouse.y < 180 && redClicked == false){
+					redClicked = true;
+					blueClicked = false;
+					yellowClicked = false;
+				}else if(mouse.x > 40 && mouse.x < 100 && mouse.y > 120 && mouse.y < 180 && redClicked == true){
+					redClicked = false;
+				}
+				if(mouse.x > 40 && mouse.x < 100 && mouse.y > 210 && mouse.y < 270 && blueClicked == false){
+					redClicked = false;
+					blueClicked = true;
+					yellowClicked = false;
+				}else if(mouse.x > 40 && mouse.x < 100 && mouse.y > 210 && mouse.y < 270 && blueClicked == true){
+					blueClicked = false;
+				}
+				if(mouse.x > 40 && mouse.x < 100 && mouse.y > 300 && mouse.y < 360 && yellowClicked == false){
+					redClicked = false;
+					blueClicked = false;
+					yellowClicked = true;
+				}else if(mouse.x > 40 && mouse.x < 100 && mouse.y > 300 && mouse.y < 360 && yellowClicked == true){
+					yellowClicked = false;
+				}	
+
+			}
+			
+			if(gameState == GAME_STATE_ROUND_OVER){
+				currentLevel ++;
+				gameState = GAME_STATE_MESSAGE;
+				reset();
+			}else if(gameState == GAME_STATE_MESSAGE)
+			{
+				gameState = GAME_STATE_DEFAULT;
+				reset();
+			}else if( gameState == GAME_STATE_END)
+			{
+				redClicked = false;
+				blueClicked = false;
+				yellowClicked = false;
+				gameState = GAME_STATE_DEFAULT;
+				reset();
+				document.querySelector("#titleScreen").style.visibility = "visible";
+				document.querySelector("#startButton").style.visibility = "visible";
+				document.querySelector("#levelsButton").style.visibility = "visible";
+				document.querySelector("#menuButton").style.visibility = "hidden";
+				document.querySelector("#resetButton").style.visibility = "hidden";
+				document.querySelector("#sound").style.visibility = "hidden";
+				document.querySelector("#mute").style.visibility = "hidden";
+				document.querySelector("#help").style.visibility = "hidden";
+				document.querySelector("#helpMenu").style.visibility = "hidden";
+				currentLevel = 0;
+			}
+			
+			if(mouse.x > 120 && mouse.x < 640 && mouse.y > 0 && mouse.y < 480){
+				if(redClicked == true){
+					//gridColor = "red";				
+	
+					for (var i = 0; i  < levels[currentLevel].gridColumns; i++)
+					{
+						for (var j = 0; j < levels[currentLevel].gridRows; j++)
+						{
+							if(currentGrid[j][i].drop)
+							{
+								//console.log(currentGrid[i][j]);
+								if (currentGrid[j][i].isPointInside(mouse.x, mouse.y))
+								{
+								//	console.log("This is block " +currentGrid[i][j].row+","+currentGrid[i][j].column)
+									if( !currentGrid[j][i].beenDropped)
+									{
+										currentGrid[j][i].fillStyle = "red";
+										currentGrid[j][i].beenDropped = true;
+										checkNeighbor(i,j, "red");
+										movesRemaining -= 1;
+										checkTarget();
+									}
+								}
+							} 
+						}
+					}
+				}
+				if(blueClicked == true){
+					//gridColor = "blue";
+					
+					//checkGrid function eventually!
+					for (var i = 0; i  < levels[currentLevel].gridColumns; i++)
+					{
+						for (var j = 0; j < levels[currentLevel].gridRows; j++)
+						{
+							if(currentGrid[j][i].drop)
+							{
+								//console.log(currentGrid[i][j]);
+								if (currentGrid[j][i].isPointInside(mouse.x, mouse.y))
+								{
+								//	console.log("This is block " +currentGrid[i][j].row+","+currentGrid[i][j].column)
+									if( !currentGrid[j][i].beenDropped)
+									{
+										currentGrid[j][i].fillStyle = "blue";
+										currentGrid[j][i].beenDropped = true;
+										checkNeighbor(i,j, "blue");
+										movesRemaining -= 1;
+										checkTarget();
+									}
+								}
+							}
+						}
+					}
+				}
+				if(yellowClicked == true){
+					//gridColor = "yellow";
+					
+					//checkGrid function eventually!
+					for (var i = 0; i  < levels[currentLevel].gridColumns; i++)
+					{
+						for (var j = 0; j < levels[currentLevel].gridRows; j++)
+						{
+							if(currentGrid[j][i].drop)
+							{
+								//console.log(currentGrid[i][j]);
+								if (currentGrid[j][i].isPointInside(mouse.x, mouse.y))
+								{
+									if( !currentGrid[j][i].beenDropped)
+									{
+										//	console.log("This is block " +currentGrid[i][j].row+","+currentGrid[i][j].column)
+										currentGrid[j][i].fillStyle = "yellow";
+										currentGrid[j][i].beenDropped = true;
+										checkNeighbor(i,j, "yellow");
+										movesRemaining -= 1;
+										checkTarget();
+									}
+								}
+							}
+						}
+					}
+				}
+				redClicked = false;
+				blueClicked = false;
+				yellowClicked = false;
+			}
+		}
+	}())	
+	</script>
+</head>
+<body>
+	<div id="noselect">
+		<div id="resetButton">
+			<p><img src="media/reset.png" width=40 height=40/><p>
+		</div>
+		<div id="menuButton">
+			<p><img src="media/menu.png" width=40 height=40/><p>
+		</div>
+		<div id="titleScreen">
+			<p><img src="media/titlescreen.png"/><p>
+		</div>
+		<div id="levelScreen">
+			<p><img src="media/levelscreen.png"/><p>
+		</div>
+		<div id="startButton">
+			<p><img src="media/start.png"/><p>
+		</div>
+		<div id="levelsButton">
+			<p><img src="media/levels.png"/><p>
+		</div>
+		<div id="arrowButton">
+			<p><img src="media/arrow.png" width=60 height=60/><p>
+		</div>
+		<div id="level1">
+			<p><img src="media/level1.png"/><p>
+		</div>
+		<div id="level2">
+			<p><img src="media/level2.png"/><p>
+		</div>
+		<div id="level3">
+			<p><img src="media/level3.png"/><p>
+		</div>
+		<div id="level4">
+			<p><img src="media/level4.png"/><p>
+		</div>
+		<div id="level5">
+			<p><img src="media/level5.png"/><p>
+		</div>
+		<div id="level6">
+			<p><img src="media/level6.png"/><p>
+		</div>
+		<div id="level7">
+			<p><img src="media/level7.png"/><p>
+		</div>
+		<div id="level8">
+			<p><img src="media/level8.png"/><p>
+		</div>
+		<div id="sound">
+			<p><img src="media/sound.png" width=35 height=35/><p>
+		</div>
+		<div id="mute">
+			<p><img src="media/mute.png" width=35 height=35/><p>
+		</div>
+		<div id="help">
+			<p><img src="media/help.png" width=35 height=35/><p>
+		</div>
+		<div id="helpMenu">
+			<p><img src="media/helpMenu.png"/><p>
+		</div>
+	</div>
+	<section id="audioControls">
+		<audio id="bgAudio" src="media/bg_music.wav" controls loop></audio>
+		<audio id="targetReached" src="media/level_complete.wav" controls></audio>
+		<audio id="targetMatched" src="media/onetarget.mp3" controls></audio>
+	</section>
+	<canvas width="640" height="480">
+	</canvas>
+</body>
+</html>
+

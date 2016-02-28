@@ -1,0 +1,14 @@
+Coding - 
+1) score / high score - Eric ***
+2) End screen! ***
+3) Color help popup/ button - Eric
+4-6)Error Messages on Restart Screen, -Katelyn
+	More feedback on End of the Level,
+	Smiley or Sound to indicate when a target is matched besides total matched
+7) moar levels
+
+minor buggs
+- unselect color around buttons - Eric
+
+future
+- implement 1 powerup
